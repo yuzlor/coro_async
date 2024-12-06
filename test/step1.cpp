@@ -1,4 +1,4 @@
-#include "../debug.hpp"
+#include "co_async/debug.hpp"
 
 #include <thread>
 #include <sys/epoll.h>
@@ -49,7 +49,7 @@ int main()
                 { // 表示需要阻塞了
                     if (errno == EWOULDBLOCK)
                     {
-                        debug(), "read: len ", len;
+                        debug(), "read EWOULDBLOCK", len;
                         break;
                     }
                     debug(), "read出错了", strerror(errno);
