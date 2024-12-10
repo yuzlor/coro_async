@@ -1,12 +1,11 @@
 #pragma once
 
 #include "debug.hpp"
-#include "uninitialized.hpp"
-#include "previous_awaiter.hpp"
-
 #include <exception>
 #include <coroutine>
 #include <utility>
+#include "uninitialized.hpp"
+#include "previous_awaiter.hpp"
 
 namespace co_async
 {
@@ -16,12 +15,11 @@ namespace co_async
     {
         auto initial_suspend() noexcept
         {
-            return std::suspend_always{};
+            return std::suspend_always();
         }
 
         auto final_suspend() noexcept
         {
-            // switch to previous awaiter
             return PreviousAwaiter(mPrevious);
         }
 
@@ -35,7 +33,7 @@ namespace co_async
             mResult.putValue(std::move(ret));
         }
 
-        void return_value(const T &ret)
+        void return_value(T const &ret)
         {
             mResult.putValue(ret);
         }
@@ -56,9 +54,8 @@ namespace co_async
 
         std::coroutine_handle<> mPrevious;
         std::exception_ptr mException{};
-        Uninitialized<T> mResult;
+        Uninitialized<T> mResult; // destructed??
 
-        // reserve default construct, delete others
         Promise &operator=(Promise &&) = delete;
     };
 
@@ -99,7 +96,7 @@ namespace co_async
         std::exception_ptr mException{};
 
         Promise &operator=(Promise &&) = delete;
-    }
+    };
 
     template <class T = void, class P = Promise<T>>
     struct [[nodiscard]] Task
@@ -127,13 +124,15 @@ namespace co_async
 
         struct Awaiter
         {
-            bool await_ready() noexcept { return false; }
+            bool await_ready() const noexcept
+            {
+                return false;
+            }
 
             std::coroutine_handle<promise_type>
             await_suspend(std::coroutine_handle<> coroutine) const noexcept
             {
                 promise_type &promise = mCoroutine.promise();
-                // 协程恢复时，可以通过 promise.mPrevious 返回到前一个协程
                 promise.mPrevious = coroutine;
                 return mCoroutine;
             }
@@ -156,18 +155,17 @@ namespace co_async
             return mCoroutine;
         }
 
-    private:
         std::coroutine_handle<promise_type> mCoroutine;
     };
 
     template <class Loop, class T, class P>
-    T run_task(Loop &loop, cosnt Task<T, P> &t)
+    T run_task(Loop &loop, Task<T, P> const &t)
     {
         auto a = t.operator co_await();
         a.await_suspend(std::noop_coroutine()).resume();
         while (loop.run())
             ;
-        return a.await.resume();
+        return a.await_resume();
     }
 
     template <class T, class P>
@@ -177,4 +175,4 @@ namespace co_async
         a.await_suspend(std::noop_coroutine()).resume();
     }
 
-}
+} // namespace co_async
